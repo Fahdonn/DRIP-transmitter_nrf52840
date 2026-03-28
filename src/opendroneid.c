@@ -1384,13 +1384,19 @@ void printByteArray(const uint8_t *byteArray, uint16_t asize, int spaced)
 */
 void printBasicID_data(ODID_BasicID_data *BasicID)
 {
-    // Ensure the ID is null-terminated
-    char buf[ODID_ID_SIZE + 1] = { 0 };
-    memcpy(buf, BasicID->UASID, ODID_ID_SIZE);
-
-    const char ODID_BasicID_data_format[] =
-        "UAType: %d\nIDType: %d\nUASID: %s\n";
-    printf(ODID_BasicID_data_format, BasicID->UAType, BasicID->IDType, buf);
+    printf("UAType: %d\nIDType: %d\nUASID: ", BasicID->UAType, BasicID->IDType);
+    
+    if (BasicID->IDType == ODID_IDTYPE_SPECIFIC_SESSION_ID) {
+        for(int i=0; i < ODID_ID_SIZE; i++) {
+            printf("%02x", BasicID->UASID[i]);
+            if(i % 2 == 1 && i < ODID_ID_SIZE - 1) printf(":");
+        }
+        printf("\n");
+    } else {
+        char buf[ODID_ID_SIZE + 1] = { 0 };
+        memcpy(buf, BasicID->UASID, ODID_ID_SIZE);
+        printf("%s\n", buf);
+    }
 }
 
 /**
