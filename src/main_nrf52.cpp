@@ -234,7 +234,7 @@ strncpy(UAS_data.OperatorID.OperatorId, "200100303ff804020191ab23cd45ef67", ODID
 
 // --- INJECTION SELF ID ---
 UAS_data.SelfID.DescType   = ODID_DESC_TYPE_TEXT;
-strncpy(UAS_data.SelfID.Desc, "DRIP CASSIOPEE ---", ODID_STR_SIZE);
+strncpy(UAS_data.SelfID.Desc, "DRIP CASSIOPEE", ODID_STR_SIZE);
 
   return;
 }
