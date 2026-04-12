@@ -87,26 +87,25 @@ static void status_leds(uint32_t,uint32_t,int,int);
 int main(void) {
   struct bt_le_ext_adv_info ext_adv_info;
 
-  // 1. Initialisation des données (votre IPv6 est injectée ici)
+  // init data
   init_odid(uav_operator, uav_id, self_id);
 
-  // 2. Initialisation du Bluetooth
-  // On ne lance PAS gps.begin() car usb_ser_dev est NULL (cause du crash)
+  // bluetooth init
   squitter.begin(&led_blue, uav_operator, &UAS_data, &ext_adv_info);
 
   printk("\n*** EMULATEUR REMOTE ID PRET ***\n");
   printk("Programme: %s\n", program_name);
   printk("Statut: Emission en cours...\n");
   
-  // 3. Boucle principale épurée
+  // loop
   while (1) {
-    // On met à jour l'advertising Bluetooth
+    // update UAS data
     squitter.foreground(&UAS_data);
 
-    // On laisse respirer le CPU (100ms)
+    // cpu sleep
     k_sleep(K_MSEC(100));
 
-    // Clignotement de survie pour les LEDs
+    // blinking led
     status_leds(k_uptime_get_32(), k_uptime_get_32(), 10, 1);
   }
 
@@ -168,7 +167,7 @@ static void init_odid(const char *uav_op,char *uav,const char *self) {
   UAS_data.BasicID[0].UAType =
   UAS_data.BasicID[1].UAType = ua_type;
 
-// --- DÉBUT INJECTION DET IPv6 ---
+// --- DET IPV6 injection ---
 static const unsigned char ipv6_det[] = {
     0x20, 0x01, 0x00, 0x30, 0x3f, 0xf8, 0x04, 0x02,
     0x01, 0x91, 0xab, 0x23, 0xcd, 0x45, 0xef, 0x67,
@@ -182,10 +181,10 @@ UAS_data.BasicID[1].IDType = ODID_IDTYPE_SPECIFIC_SESSION_ID;
 memcpy(UAS_data.BasicID[1].UASID, ipv6_det, sizeof(ipv6_det));
 // --- FIN INJECTION ---
 printk("\n=== DEMARRAGE DU DRONE ===\n");
-printk("DET (IPv6) injecte avec succes !\n");
+printk("DET (IPv6) injecté avec succes !\n");
 printk("==========================\n");
 
-  // --- INJECTION COORDONNÉES DRONE ---
+  // --- DRONE'S COORDINATES ---
   location->Status         = ODID_STATUS_AIRBORNE; // Le drone est déclaré "en vol"
   location->Latitude       = 48.6248;              // Latitude (ex: Tour Eiffel)
   location->Longitude      = 2.4449;               // Longitude
@@ -196,7 +195,6 @@ printk("==========================\n");
   location->SpeedHorizontal = 10.5;                // Vitesse horizontale (m/s)
   location->SpeedVertical   = 1.0;                 // Vitesse verticale (m/s)
   
-  // Précision (important pour que les apps valident le signal)
   location->HorizAccuracy  = ODID_HOR_ACC_10_METER;
   location->VertAccuracy   = ODID_VER_ACC_10_METER;
   location->BaroAccuracy   = ODID_VER_ACC_10_METER;
@@ -206,7 +204,7 @@ printk("==========================\n");
 
   location->HeightType         = ODID_HEIGHT_REF_OVER_TAKEOFF;
 
- // --- INJECTION COORDONNÉES OPÉRATEUR ---
+ // --- OPERATOR's COORDINATES ---
   system->OperatorLocationType = ODID_OPERATOR_LOCATION_TYPE_TAKEOFF;
   system->OperatorLatitude     = 48.6251;          // Position du pilote
   system->OperatorLongitude    = 2.4422;
@@ -228,11 +226,11 @@ printk("==========================\n");
   }
 #endif
 
-// --- INJECTION OPERATOR ID ---
+// --- OPERATOR ID ---
 UAS_data.OperatorID.OperatorIdType = ODID_OPERATOR_ID;
 strncpy(UAS_data.OperatorID.OperatorId, "200100303ff804020191ab23cd45ef67", ODID_ID_SIZE);
 
-// --- INJECTION SELF ID ---
+// --- SELF ID ---
 UAS_data.SelfID.DescType   = ODID_DESC_TYPE_TEXT;
 strncpy(UAS_data.SelfID.Desc, "DRIP CASSIOPEE", ODID_STR_SIZE);
 
