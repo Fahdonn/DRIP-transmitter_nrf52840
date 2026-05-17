@@ -37,6 +37,8 @@
 #include "spektrum_i2c.h"
 #endif
 
+#include <psa/crypto.h>
+
 //
 
 static const char                 uav_operator[] = UAV_OPERATOR,
@@ -79,6 +81,129 @@ static int                        base_set = 0, build_report = 0;
 
 static void init_odid(const char *,char *,const char *);
 static void status_leds(uint32_t,uint32_t,int,int);
+
+// Clé privée Ed25519 (32 bytes)
+static const uint8_t drone_private_key[32] = {
+    0x1a, 0xf7, 0x97, 0xa4, 0x85, 0xbc, 0x36, 0x47,
+    0x45, 0x6d, 0xe5, 0x3f, 0xf4, 0x11, 0x92, 0xc5,
+    0x8e, 0x88, 0x1a, 0x7a, 0xf2, 0x36, 0x36, 0xa6,
+    0x2a, 0x2d, 0x76, 0x39, 0xcf, 0xb6, 0x07, 0xc0
+};
+
+// Clé publique Ed25519 (32 bytes)
+static const uint8_t drone_public_key[32] = {
+    0xf6, 0x0d, 0x11, 0xe2, 0x3a, 0x42, 0x28, 0xda,
+    0x04, 0x78, 0x94, 0xea, 0xa8, 0xe7, 0x1b, 0x4d,
+    0x7d, 0xa2, 0x42, 0xe2, 0x25, 0x64, 0xee, 0x7d,
+    0x83, 0x50, 0x08, 0x4d, 0xff, 0x50, 0x9d, 0x7b
+};
+
+// DET de la HDA parente
+static const uint8_t auth_hda_det[16] = {
+    0x20, 0x01, 0x00, 0x3e, 0xfe, 0x04, 0x02, 0x05,
+    0x06, 0x37, 0xac, 0x6f, 0x16, 0x7a, 0x23, 0x03
+};
+
+// DET du drone
+static const uint8_t drone_det[16] = {
+    0x20, 0x01, 0x00, 0x30, 0x3f, 0xf8, 0x04, 0x02,
+    0x01, 0x91, 0xab, 0x23, 0xcd, 0x45, 0xef, 0x67
+};
+
+static void build_auth_link_message(ODID_UAS_Data *uas) {
+
+    // Timestamps depuis epoch DRIP
+    uint32_t now = (uint32_t)(k_uptime_get() / 1000) + 28000000;
+    uint32_t vnb = now - 60;
+    uint32_t vna = now + 3600;
+
+    // Message à signer : VNB(4) | VNA(4) | childDET(16) | childHI(32) | parentDET(16) = 72 bytes
+    uint8_t message[72];
+    memset(message, 0, sizeof(message));
+
+    message[0] = vnb & 0xFF;
+    message[1] = (vnb >> 8) & 0xFF;
+    message[2] = (vnb >> 16) & 0xFF;
+    message[3] = (vnb >> 24) & 0xFF;
+
+    message[4] = vna & 0xFF;
+    message[5] = (vna >> 8) & 0xFF;
+    message[6] = (vna >> 16) & 0xFF;
+    message[7] = (vna >> 24) & 0xFF;
+
+    memcpy(message + 8,  drone_det,        16); // childDET
+    memcpy(message + 24, drone_public_key,  32); // childHI
+    memcpy(message + 56, auth_hda_det,     16); // parentDET
+
+    // Signer avec PSA Crypto
+    psa_status_t         status;
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_key_id_t         key_id;
+    uint8_t              signature[64];
+    size_t               sig_len = 0;
+
+    // 1. Initialisation avec vérification du statut (Crucial pour capter les erreurs mémoire)
+    status = psa_crypto_init();
+    if (status != PSA_SUCCESS) {
+        printk("PSA crypto init failed: %d\n", status);
+        return;
+    }
+
+    // 2. Configuration des attributs de la clé (256 bits pour Ed25519)
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attributes, PSA_ALG_PURE_EDDSA);
+    psa_set_key_type(&attributes,
+        PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_TWISTED_EDWARDS));
+    psa_set_key_bits(&attributes, 255);
+
+    // 3. Importation de la clé privée
+    status = psa_import_key(&attributes, drone_private_key, 32, &key_id);
+    if (status != PSA_SUCCESS) {
+        printk("PSA import key failed: %d\n", status);
+        return;
+    }
+
+    // 4. Signature du message
+    status = psa_sign_message(key_id, PSA_ALG_PURE_EDDSA,
+                              message, sizeof(message),
+                              signature, sizeof(signature), &sig_len);
+    
+    // 5. Destruction de la clé en RAM
+    psa_destroy_key(key_id);
+
+    if (status != PSA_SUCCESS) {
+        printk("PSA sign failed: %d\n", status);
+        return;
+    }
+
+    printk("Signature Ed25519 OK (%d bytes)\n", (int)sig_len);
+
+    // Payload complet : SAM type(1) | message(72) | signature(64) = 137 bytes
+    uint8_t auth_payload[137];
+    auth_payload[0] = 0x01; // SAM type = Link
+    memcpy(auth_payload + 1,  message,   72);
+    memcpy(auth_payload + 73, signature, 64);
+
+    // Page 0 : 17 bytes de données
+    uas->Auth[0].AuthType      = ODID_AUTH_SPECIFIC_AUTHENTICATION;
+    uas->Auth[0].DataPage      = 0;
+    uas->Auth[0].LastPageIndex = 5;
+    uas->Auth[0].Length        = 137;
+    uas->Auth[0].Timestamp     = now;
+    memcpy(uas->Auth[0].AuthData, auth_payload, 17);
+
+    // Pages 1 à 5 : 23 bytes chacune
+    for (int page = 1; page <= 5; page++) {
+        int offset    = 17 + (page - 1) * 23;
+        int remaining = (int)sizeof(auth_payload) - offset;
+        int to_copy   = (remaining > 23) ? 23 : remaining;
+        if (to_copy <= 0) break;
+
+        uas->Auth[page].AuthType = ODID_AUTH_SPECIFIC_AUTHENTICATION;
+        uas->Auth[page].DataPage = page;
+        memcpy(uas->Auth[page].AuthData, auth_payload + offset, to_copy);
+    }
+}
 
 /*
  *
@@ -233,6 +358,9 @@ strncpy(UAS_data.OperatorID.OperatorId, "200100303ff804020191ab23cd45ef67", ODID
 // --- SELF ID ---
 UAS_data.SelfID.DescType   = ODID_DESC_TYPE_TEXT;
 strncpy(UAS_data.SelfID.Desc, "DRIP CASSIOPEE", ODID_STR_SIZE);
+
+  // Construire et signer le message Auth Link
+  build_auth_link_message(&UAS_data);
 
   return;
 }
