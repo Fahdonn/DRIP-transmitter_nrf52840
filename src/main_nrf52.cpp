@@ -113,7 +113,7 @@
   static void build_auth_link_message(ODID_UAS_Data *uas) {
 
       // Timestamps depuis epoch DRIP
-      uint32_t now = (uint32_t)(k_uptime_get() / 1000) + 28000000;
+      uint32_t now = (uint32_t)(k_uptime_get() / 1000) + 233712000; 
       uint32_t vnb = now - 60;
       uint32_t vna = now + 3600;
 
