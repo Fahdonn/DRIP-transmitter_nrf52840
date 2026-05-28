@@ -50,7 +50,7 @@ class RID_open {
   uint8_t                   pack_buffer[256], batt_buffer[8];
   uint8_t                  *odid_enc_bt4, *odid_seq_bt4, bt4_adv_buffer[36], *odid_seq_bt5;
   uint32_t                  last_bt4_advert = 0, last_bt5_advert = 0;
-  struct gpio_dt_spec      *status_led;
+  struct gpio_dt_spec      *status_led; 
   struct bt_le_adv_param    bt4_adv_param, bt5_adv_param;
   struct bt_data            bt4_data[2], bt5_data[5];         
   struct bt_le_ext_adv     *bt5_advert;
@@ -67,7 +67,7 @@ class RID_open {
   ODID_System_encoded      *system_enc     =  NULL;
   ODID_OperatorID_encoded  *operatorID_enc =  NULL;
   ODID_SelfID_encoded      *selfID_enc     =  NULL;
-  ODID_Auth_encoded        *auth_enc[2]    = {NULL, NULL};
+  ODID_Auth_encoded        *auth_enc[7]    = {NULL, NULL};
 };
 
 #endif

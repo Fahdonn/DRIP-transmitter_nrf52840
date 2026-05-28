@@ -2,8 +2,7 @@
  *
  * A program for the nRF52840 to transmit ASTM F3411/ASD-STAN 4709-002/opendroneid 
  * remote identification signals over Bluetooth.
- * 
- * Copyright (c) 2023 Steve Jack
+ * * Copyright (c) 2023 Steve Jack
  *
  * Apache 2.0 licence
  *
@@ -44,8 +43,7 @@ RID_open::RID_open() {
   return;
 }
 
-/*
- *
+/* *
  */
 
 int RID_open::begin(const struct gpio_dt_spec *led,const char *name,ODID_UAS_Data *UAS_data,
@@ -74,21 +72,18 @@ int RID_open::begin(const struct gpio_dt_spec *led,const char *name,ODID_UAS_Dat
   batt_buffer[2] = 0x0d;
   batt_buffer[3] = 0x02;
 
-  // This order is for ID_JAPAN. Different orders would require a #define block.
+  // Initialisation mémoire des pointeurs d'encodage
   basicID_enc[0] = (ODID_BasicID_encoded *)    &pack_encoded[j = 0];
   basicID_enc[1] = (ODID_BasicID_encoded *)    &pack_encoded[++j];
   location_enc   = (ODID_Location_encoded *)   &pack_encoded[++j];
-  auth_enc[0]    = (ODID_Auth_encoded *)       &pack_encoded[++j];
   system_enc     = (ODID_System_encoded *)     &pack_encoded[++j];
   operatorID_enc = (ODID_OperatorID_encoded *) &pack_encoded[++j];
   selfID_enc     = (ODID_SelfID_encoded *)     &pack_encoded[++j];
-  auth_enc[1]    = (ODID_Auth_encoded *)       &pack_encoded[++j];
 
   encodeBasicIDMessage(basicID_enc[0],&UAS_data->BasicID[0]);
   encodeBasicIDMessage(basicID_enc[1],&UAS_data->BasicID[1]);
   encodeOperatorIDMessage(operatorID_enc,&UAS_data->OperatorID);
   encodeSelfIDMessage(selfID_enc,&UAS_data->SelfID);
-  encodeAuthMessage(auth_enc[0],&UAS_data->Auth[0]);
 #if 0
   encodeLocationMessage(location_enc,&UAS_data->Location);
   encodeSystemMessage(system_enc,&UAS_data->System);
@@ -320,52 +315,68 @@ int RID_open::foreground(ODID_UAS_Data *UAS_data) {
  *
  */
 
-int RID_open::update_message(int *_phase,ODID_UAS_Data *UAS_data) {
+int RID_open::update_message(int *_phase, ODID_UAS_Data *UAS_data) {
 
   int index = 0, phase;
-
   phase = *_phase;
-  
+
   while (index == 0) {
-  
+
     switch (phase++) {
 
-    case  0:
-    case  3:
+    case 0:
+    case 3:
       index = 1;
-      encodeLocationMessage(location_enc,&UAS_data->Location);
-      memcpy(odid_enc_bt4,location_enc,ODID_MESSAGE_SIZE);
+      encodeLocationMessage(location_enc, &UAS_data->Location);
+      memcpy(odid_enc_bt4, location_enc, ODID_MESSAGE_SIZE);
       break;
 
-    case  1:
-    case  4:
+    case 1:
+    case 4:
       index = 2;
-      encodeSystemMessage(system_enc,&UAS_data->System);
-      memcpy(odid_enc_bt4,system_enc,ODID_MESSAGE_SIZE);
+      encodeSystemMessage(system_enc, &UAS_data->System);
+      memcpy(odid_enc_bt4, system_enc, ODID_MESSAGE_SIZE);
       break;
 
     case 2:
-#if ID_JAPAN
-      index = 6;
-      memcpy(odid_enc_bt4,basicID_enc[1],ODID_MESSAGE_SIZE);
-#else
       if (operatorID_enc->OperatorId[0]) {
         index = 3;
-        memcpy(odid_enc_bt4,operatorID_enc,ODID_MESSAGE_SIZE);
+        memcpy(odid_enc_bt4, operatorID_enc, ODID_MESSAGE_SIZE);
       }
-#endif
       break;
 
     case 5:
       index = 4;
-      memcpy(odid_enc_bt4,basicID_enc[0],ODID_MESSAGE_SIZE);
+      memcpy(odid_enc_bt4, basicID_enc[0], ODID_MESSAGE_SIZE);
       break;
+
+    // ── Pages Auth 0 à 6 (SAM Link) ──────────────────────────────────────
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12: { 
+      int auth_page = phase - 7;   // 0 à 6
+      
+      // NOUVEAU : Encodage "à la volée" pour éviter le crash mémoire
+      ODID_Auth_encoded temp_auth;
+      memset(&temp_auth, 0, sizeof(temp_auth));
+      
+      encodeAuthMessage(&temp_auth, &UAS_data->Auth[auth_page]);
+      memcpy(odid_enc_bt4, &temp_auth, ODID_MESSAGE_SIZE);
+      
+      index = 6;
+      break;
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
     default:
       if (selfID_enc->Desc[0]) {
         index = 5;
-        encodeSelfIDMessage(selfID_enc,&UAS_data->SelfID); // Because we sometimes use selfID 
-        memcpy(odid_enc_bt4,selfID_enc,ODID_MESSAGE_SIZE); // for diagnostics.
+        encodeSelfIDMessage(selfID_enc, &UAS_data->SelfID);
+        memcpy(odid_enc_bt4, selfID_enc, ODID_MESSAGE_SIZE);
       }
       phase = 0;
       break;
@@ -373,7 +384,7 @@ int RID_open::update_message(int *_phase,ODID_UAS_Data *UAS_data) {
   }
 
   *odid_seq_bt4 = ++msg_counter[index];
-  
+
   return *_phase = phase;
 }
 
@@ -389,4 +400,3 @@ int RID_open::update_message(int *_phase,ODID_UAS_Data *UAS_data) {
 /*
  *
  */
-
