@@ -82,7 +82,7 @@
   static void init_odid(const char *,char *,const char *);
   static void status_leds(uint32_t,uint32_t,int,int);
 
-  // Clé privée Ed25519 (32 bytes)
+  // Private key Ed25519 (32 bytes)
   static const uint8_t drone_private_key[32] = {
       0x59, 0x12, 0x9c, 0x5c, 0x9a, 0xb2, 0xc7, 0xf1,
       0x88, 0x01, 0x04, 0x32, 0x00, 0x23, 0x61, 0xd5,
@@ -90,7 +90,7 @@
       0xa0, 0x77, 0x0a, 0xd2, 0xed, 0x67, 0x78, 0x17
   };
 
-  // Clé publique Ed25519 (32 bytes)
+  // Public key Ed25519 (32 bytes)
   static const uint8_t drone_public_key[32] = {
       0xf5, 0x05, 0x70, 0x4e, 0xb5, 0x44, 0xf8, 0x61,
       0x19, 0x0f, 0x2d, 0x8e, 0xda, 0xc9, 0xba, 0x83,
@@ -98,13 +98,13 @@
       0x1c, 0x22, 0x08, 0x51, 0x32, 0x0e, 0xc7, 0xe6
   };
 
-  // DET de la HDA parente
+  // DET of parent HDA
   static const uint8_t auth_hda_det[16] = {
       0x20, 0x01, 0x00, 0x3e, 0xfe, 0x04, 0x02, 0x05,
       0x06, 0x37, 0xac, 0x6f, 0x16, 0x7a, 0x23, 0x03
   };
 
-  // DET du drone
+  // DET of the drone
   static const uint8_t drone_det[16] = {
       0x20, 0x01, 0x00, 0x30, 0x3f, 0xf8, 0x04, 0x02,
       0x73, 0xc6, 0x58, 0x1c, 0xcc, 0xde, 0x39, 0x98
@@ -117,7 +117,7 @@
       uint32_t vnb = now - 60;
       uint32_t vna = now + 3600;
 
-      // Message à signer : VNB(4) | VNA(4) | childDET(16) | childHI(32) | parentDET(16) = 72 bytes
+      // Message to sign : VNB(4) | VNA(4) | childDET(16) | childHI(32) | parentDET(16) = 72 bytes
       uint8_t message[72];
       memset(message, 0, sizeof(message));
 
@@ -135,40 +135,40 @@
       memcpy(message + 24, drone_public_key,  32); // childHI
       memcpy(message + 56, auth_hda_det,     16); // parentDET
 
-      // Signer avec PSA Crypto
+      // Signe with PSA Crypto
       psa_status_t         status;
       psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
       psa_key_id_t         key_id;
       uint8_t              signature[64];
       size_t               sig_len = 0;
 
-      // 1. Initialisation avec vérification du statut (Crucial pour capter les erreurs mémoire)
+      // 1. Initialization with status verification
       status = psa_crypto_init();
       if (status != PSA_SUCCESS) {
           printk("PSA crypto init failed: %d\n", status);
           return;
       }
 
-      // 2. Configuration des attributs de la clé (256 bits pour Ed25519)
+      // 2. Configuration of the key's attributes (256 bits for Ed25519)
       psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
       psa_set_key_algorithm(&attributes, PSA_ALG_PURE_EDDSA);
       psa_set_key_type(&attributes,
           PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_TWISTED_EDWARDS));
       psa_set_key_bits(&attributes, 255);
 
-      // 3. Importation de la clé privée
+      // 3. Import of the private key
       status = psa_import_key(&attributes, drone_private_key, 32, &key_id);
       if (status != PSA_SUCCESS) {
           printk("PSA import key failed: %d\n", status);
           return;
       }
 
-      // 4. Signature du message
+      // 4. Message signing
       status = psa_sign_message(key_id, PSA_ALG_PURE_EDDSA,
                                 message, sizeof(message),
                                 signature, sizeof(signature), &sig_len);
       
-      // 5. Destruction de la clé en RAM
+      // 5. Destroy the key handle
       psa_destroy_key(key_id);
 
       if (status != PSA_SUCCESS) {
@@ -178,13 +178,13 @@
 
       printk("Signature Ed25519 OK (%d bytes)\n", (int)sig_len);
 
-      // Payload complet : SAM type(1) | message(72) | signature(64) = 137 bytes
+      // Complete payload : SAM type(1) | message(72) | signature(64) = 137 bytes
       uint8_t auth_payload[137];
       auth_payload[0] = 0x01; // SAM type = Link
       memcpy(auth_payload + 1,  message,   72);
       memcpy(auth_payload + 73, signature, 64);
 
-      // Page 0 : 17 bytes de données
+      // Page 0 : 17 bytes of data
       uas->Auth[0].AuthType      = ODID_AUTH_SPECIFIC_AUTHENTICATION;
       uas->Auth[0].DataPage      = 0;
       uas->Auth[0].LastPageIndex = 6;
@@ -192,14 +192,14 @@
       uas->Auth[0].Timestamp     = now;
       memcpy(uas->Auth[0].AuthData, auth_payload, 17);
 
-      // Pages 1 à 6 : 23 bytes chacune
+      // Pages 1 to 6 : 23 bytes each
       for (int page = 1; page <= 6; page++) {
           int offset    = 17 + (page - 1) * 23;
           int remaining = (int)sizeof(auth_payload) - offset;
           int to_copy   = (remaining > 23) ? 23 : remaining;
           if (to_copy <= 0) break;
 
-          // Sécurité : on met à zéro s'il n'y a plus de données
+          // Security : 0 if no more data
           if (to_copy <= 0) {
               memset(uas->Auth[page].AuthData, 0, 23);
               to_copy = 0;
@@ -228,20 +228,13 @@
   printk("Programme: %s\n", program_name);
   printk("Statut: Emission en cours...\n");
   
-  // ✅ LA CORRECTION CRITIQUE EST ICI :
-  // On génère la signature UNE SEULE FOIS avant de lancer la boucle infinie.
-  // Les 7 pages sont maintenant totalement figées en RAM.
   build_auth_link_message(&UAS_data);
 
   // loop
   while (1) {
-    // ❌ (L'appel à build_auth_link_message a été supprimé de la boucle)
 
-    // 2. On met à jour les données pour l'émetteur Bluetooth
-    // Le squitter va piocher en boucle dans les 7 pages figées.
     squitter.foreground(&UAS_data);
 
-    // cpu sleep - On garde 200ms pour laisser le module Bluetooth respirer
     k_sleep(K_MSEC(200));
 
     // blinking led
@@ -324,32 +317,32 @@
   printk("==========================\n");
 
     // --- DRONE'S COORDINATES ---
-    location->Status         = ODID_STATUS_AIRBORNE; // Le drone est déclaré "en vol"
-    location->Latitude       = 48.6248;              // Latitude (ex: Tour Eiffel)
-    location->Longitude      = 2.4449;               // Longitude
-    location->AltitudeGeo    = 150.0;                // Altitude Géodésique (mètres)
-    location->AltitudeBaro   = 150.0;                // Altitude Barométrique
-    location->Height         = 50.0;                 // Hauteur par rapport au sol
-    location->Direction      = 180.0;                // Cap (0-360°)
-    location->SpeedHorizontal = 10.5;                // Vitesse horizontale (m/s)
-    location->SpeedVertical   = 1.0;                 // Vitesse verticale (m/s)
+    location->Status         = ODID_STATUS_AIRBORNE; 
+    location->Latitude       = 48.6248;              
+    location->Longitude      = 2.4449;               
+    location->AltitudeGeo    = 150.0;                
+    location->AltitudeBaro   = 150.0;                
+    location->Height         = 50.0;                 
+    location->Direction      = 180.0;                
+    location->SpeedHorizontal = 10.5;                
+    location->SpeedVertical   = 1.0;                 
     
     location->HorizAccuracy  = ODID_HOR_ACC_10_METER;
     location->VertAccuracy   = ODID_VER_ACC_10_METER;
     location->BaroAccuracy   = ODID_VER_ACC_10_METER;
     location->SpeedAccuracy  = ODID_SPEED_ACC_10_METERS_PER_SECOND;
     location->TSAccuracy     = ODID_TIME_ACC_0_1_SECOND;
-    location->TimeStamp      = 30.0;                 // Secondes depuis l'heure pile
+    location->TimeStamp      = 30.0;                
 
     location->HeightType         = ODID_HEIGHT_REF_OVER_TAKEOFF;
 
   // --- OPERATOR's COORDINATES ---
     system->OperatorLocationType = ODID_OPERATOR_LOCATION_TYPE_TAKEOFF;
-    system->OperatorLatitude     = 48.6251;          // Position du pilote
+    system->OperatorLatitude     = 48.6251;          
     system->OperatorLongitude    = 2.4422;
-    system->OperatorAltitudeGeo  = 35.0;             // Altitude sol au décollage
+    system->OperatorAltitudeGeo  = 35.0;          
     system->AreaCount            = 1;
-    system->AreaRadius           = 0;                // Pas de zone de vol définie
+    system->AreaRadius           = 0;                
     system->ClassificationType   = ODID_CLASSIFICATION_TYPE_EU;
     system->CategoryEU           = ODID_CATEGORY_EU_OPEN;
     system->ClassEU              = ODID_CLASS_EU_CLASS_1;
@@ -373,7 +366,7 @@
   UAS_data.SelfID.DescType   = ODID_DESC_TYPE_TEXT;
   strncpy(UAS_data.SelfID.Desc, "DRIP CASSIOPEE", ODID_STR_SIZE);
 
-    // Construire et signer le message Auth Link
+    // Build and sign the authentication message (SAM Link) to be included in the broadcasted data
     build_auth_link_message(&UAS_data);
 
     return;

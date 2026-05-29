@@ -72,7 +72,7 @@ int RID_open::begin(const struct gpio_dt_spec *led,const char *name,ODID_UAS_Dat
   batt_buffer[2] = 0x0d;
   batt_buffer[3] = 0x02;
 
-  // Initialisation mémoire des pointeurs d'encodage
+  // Initialisation of the encoded message structures
   basicID_enc[0] = (ODID_BasicID_encoded *)    &pack_encoded[j = 0];
   basicID_enc[1] = (ODID_BasicID_encoded *)    &pack_encoded[++j];
   location_enc   = (ODID_Location_encoded *)   &pack_encoded[++j];
@@ -360,7 +360,6 @@ int RID_open::update_message(int *_phase, ODID_UAS_Data *UAS_data) {
     case 12: { 
       int auth_page = phase - 7;   // 0 à 6
       
-      // NOUVEAU : Encodage "à la volée" pour éviter le crash mémoire
       ODID_Auth_encoded temp_auth;
       memset(&temp_auth, 0, sizeof(temp_auth));
       
@@ -370,7 +369,6 @@ int RID_open::update_message(int *_phase, ODID_UAS_Data *UAS_data) {
       index = 6;
       break;
     }
-    // ─────────────────────────────────────────────────────────────────────
 
     default:
       if (selfID_enc->Desc[0]) {
