@@ -153,11 +153,65 @@
   *
   */
 
+  // Persistent id for the drone's Ed25519 signing key. The private key is GENERATED on-device
+  // into PSA secure storage and is never exportable, so it never appears in the firmware image.
+  // Only the public key is read out (to compute the DET and build the HDA endorsement).
+  #define DRONE_KEY_ID  ((psa_key_id_t)0x00445249)   // 'D','R','I'
+
+  static psa_key_id_t drone_key_handle = 0;
+
+  static void provision_drone_key(void) {
+      psa_status_t status = psa_crypto_init();
+      if (status != PSA_SUCCESS) { printk("PSA init failed: %d\n", (int)status); return; }
+
+      // Reuse the key if it was already provisioned on a previous boot.
+      psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+      if (psa_get_key_attributes(DRONE_KEY_ID, &attr) == PSA_SUCCESS) {
+          drone_key_handle = DRONE_KEY_ID;
+          psa_reset_key_attributes(&attr);
+          printk("Drone key already provisioned (id=0x%08x)\n", (unsigned)DRONE_KEY_ID);
+      } else {
+          // First boot: generate a persistent, non-exportable Ed25519 key pair on-device.
+          psa_key_attributes_t g = PSA_KEY_ATTRIBUTES_INIT;
+          psa_set_key_id(&g, DRONE_KEY_ID);
+          psa_set_key_lifetime(&g, PSA_KEY_LIFETIME_PERSISTENT);
+          psa_set_key_usage_flags(&g, PSA_KEY_USAGE_SIGN_MESSAGE);   // note: NOT exportable
+          psa_set_key_algorithm(&g, PSA_ALG_PURE_EDDSA);
+          psa_set_key_type(&g, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_TWISTED_EDWARDS));
+          psa_set_key_bits(&g, 255);
+          status = psa_generate_key(&g, &drone_key_handle);
+          psa_reset_key_attributes(&g);
+          if (status != PSA_SUCCESS) {
+              printk("Drone key generation failed: %d (persistent storage configured?)\n",
+                     (int)status);
+              return;
+          }
+          printk("Drone key generated on-device (id=0x%08x)\n", (unsigned)drone_key_handle);
+      }
+
+      // Read ONLY the public key (safe to expose). Give this to drip_provision.py to rebuild the
+      // DET, the DNS records and the HDA endorsement for this drone.
+      uint8_t pub[32];
+      size_t pub_len = 0;
+      status = psa_export_public_key(drone_key_handle, pub, sizeof(pub), &pub_len);
+      if (status == PSA_SUCCESS && pub_len == 32) {
+          printk("Drone PUBLIC key: ");
+          for (size_t i = 0; i < pub_len; i++) printk("%02x", pub[i]);
+          printk("\n");
+      } else {
+          printk("psa_export_public_key failed: %d (len=%d)\n", (int)status, (int)pub_len);
+      }
+  }
+
   int main(void) {
   struct bt_le_ext_adv_info ext_adv_info;
 
   // init data
   init_odid(uav_operator, uav_id, self_id);
+
+  // Provision (generate on first boot) the drone signing key in secure storage, and print its
+  // public key so the DET / DNS / endorsement can be rebuilt from it.
+  provision_drone_key();
 
   // bluetooth init
   squitter.begin(&led_blue, uav_operator, &UAS_data, &ext_adv_info);
