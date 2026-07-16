@@ -308,8 +308,10 @@
   #endif
 
   // --- OPERATOR ID ---
+  // The Operator ID is the operator's registration number (issued by the CAA), NOT the DET.
+  // The DET is the UAS/aircraft identity (BasicID); the operator identity is separate.
   UAS_data.OperatorID.OperatorIdType = ODID_OPERATOR_ID;
-  strncpy(UAS_data.OperatorID.OperatorId, "200100303ff80402a46fb509afce2cb0", ODID_ID_SIZE);
+  strncpy(UAS_data.OperatorID.OperatorId, uav_op, ODID_ID_SIZE);
 
   // --- SELF ID ---
   UAS_data.SelfID.DescType   = ODID_DESC_TYPE_TEXT;
