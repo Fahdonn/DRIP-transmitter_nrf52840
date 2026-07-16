@@ -41,6 +41,10 @@ project(remote_id_nrf52)
 
 # Source files.
 
+# Unix epoch (seconds) at configure time. The board has no RTC, so this is injected as the
+# transmitter's real-time base: timestamps become ~real at flash without manual editing.
+string(TIMESTAMP build_unix_time "%s" UTC)
+
 configure_file(src/remote_id.h.in ${CMAKE_CURRENT_SOURCE_DIR}/src/remote_id.h)
 
 set(c_sources src/opendroneid.c src/alt_unix_time.c)

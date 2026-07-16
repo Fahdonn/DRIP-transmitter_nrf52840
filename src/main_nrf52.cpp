@@ -171,6 +171,11 @@
   // loop
   while (1) {
 
+    // Keep the System message timestamp ~real: the board has no RTC, so base it on the
+    // build-time epoch (injected by CMake) plus uptime. odid_datum is the 2019 DRIP/ODID epoch.
+    UAS_data.System.SystemTimestamp =
+        (uint32_t)(BUILD_UNIX_TIME + (uint64_t)(k_uptime_get() / 1000) - odid_datum);
+
     squitter.foreground(&UAS_data);
 
     k_sleep(K_MSEC(200));
