@@ -46,6 +46,10 @@
 #define BATT_VOLTS        0
 #define STATIC_BLE_MAC    1
 
+// Unix epoch (seconds) at build time, injected by CMake. The board has no RTC, so this is the
+// transmitter's real-time base; add uptime to approximate the current time.
+#define BUILD_UNIX_TIME   1784277611UL
+
 // National/regional variations.
 #define ID_JAPAN          0
 #define ID_USA            0
