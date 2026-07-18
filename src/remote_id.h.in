@@ -39,6 +39,10 @@
 #define AUTH_KEY          "0123456789abcdef"
 #define AUTH_IV           "nopqrs"
 
+// Added by Sandoche
+#define DET_IPV6_BYTES    { ${det_ipv6} }
+
+
 #define GPS_PASSTHROUGH   1
 #define TXT_BOTH_PORTS    0 // Sends error messages to both the serial and USB ports.
 #define SPEKTRUM          ${spektrum}
