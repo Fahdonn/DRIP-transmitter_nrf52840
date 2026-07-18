@@ -52,7 +52,7 @@
 
 // Unix epoch (seconds) at build time, injected by CMake. The board has no RTC, so this is the
 // transmitter's real-time base; add uptime to approximate the current time.
-#define BUILD_UNIX_TIME   1784377786UL
+#define BUILD_UNIX_TIME   1784382398UL
 
 // National/regional variations.
 #define ID_JAPAN          0
