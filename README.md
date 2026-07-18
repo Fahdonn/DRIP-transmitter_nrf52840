@@ -1,5 +1,8 @@
 Original repository from sxjack : https://github.com/sxjack/remote_id_bt5
 
+## WARNING
+For the IETF 126 Hackathon, to have the latest version of the application please launch a git checkout origin/drip-android in your terminal.
+
 # Remote ID
 
 A program for the nRF52840 that transmits opendroneid / ASTM F3411 / ASD-STAN 4709-002 UAV direct remote identification (DRI) signals over Bluetooth 4 and 5.
