@@ -39,6 +39,10 @@
 #define AUTH_KEY          "0123456789abcdef"
 #define AUTH_IV           "nopqrs"
 
+// Added by Sandoche
+#define DET_IPV6_BYTES    { 0x20,0x01,0x00,0x30,0x3f,0xf8,0x04,0x02,0x73,0xc6,0x58,0x1c,0xcc,0xde,0x39,0x98,0x00,0x00,0x00,0x00 }
+
+
 #define GPS_PASSTHROUGH   1
 #define TXT_BOTH_PORTS    0 // Sends error messages to both the serial and USB ports.
 #define SPEKTRUM          0
@@ -48,7 +52,7 @@
 
 // Unix epoch (seconds) at build time, injected by CMake. The board has no RTC, so this is the
 // transmitter's real-time base; add uptime to approximate the current time.
-#define BUILD_UNIX_TIME   1784277611UL
+#define BUILD_UNIX_TIME   1784382398UL
 
 // National/regional variations.
 #define ID_JAPAN          0
